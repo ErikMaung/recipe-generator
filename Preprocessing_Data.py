@@ -1,6 +1,6 @@
 import pandas as pd
 import re # Module for working with regular expressions
-from tensorflow.keras.preprocessing.text import Tokenizer # Mode for tokenizing data
+from tensorflow.keras.preprocessing.text import Tokenizer # Module for tokenizing data
 
 def clean(data, column):
     clean_data = (data[column] # Reduce the data to a specific column
