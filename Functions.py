@@ -1,12 +1,17 @@
 import re # library for working with regular expressions
 import pandas as pd
 import numpy as np
+
 import spacy # library for nlp tasks
 nlp = spacy.load("en_core_web_sm")
 from sklearn.model_selection import train_test_split
+from matplotlib import pyplot as plt
+
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer # library for tokenizing data
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras import layers
+from tensorflow.keras.callbacks import EarlyStopping
 
 
 
@@ -157,8 +162,9 @@ def input_seq(train, val, test, tokenizer):
     """
     This function creates input sequences for the Keras Sequential model. The input sequences are created by using n-grams of 
     each tokenized text element. Each n-gram in the sequence is padded with zeros to the length of the largest n-gram sequence
-    in the training data. The x variable represents the predictor data, meaning it is all the data in the input sequence, minus the last token. The 
-    y variable represents the target data, which is what the model aims to predict. Therefore, the y variable is the last token "word" in the input
+    in the training data. The x variable represents the predictor data, meaning it is all the data in the input sequence, minus the last
+    token. The y variable represents the target data, which is what the model aims to predict. Therefore, the y variable is the last token
+    "word" in the input
     sequences.
     @param train, val, test: text objects representing training, validation, and testing data
     @param tokenizer: tokenizer object from tensorflow
@@ -218,3 +224,79 @@ def prepare_for_model(train_x, train_y, val_x, val_y, test_x, test_y, total_word
     test_y = np.array(test_y)
     
     return train_x, train_y, val_x, val_y, test_x, test_y
+
+
+
+
+
+def evaluate_model(model, history, test_x, test_y):
+    """
+    This function creates plots using matplotlib to plot the model accuracy and loss across epochs for the training and 
+    validation datasets. This function then prints out the loss and accuracy percent when the model is evaluated on the 
+    testing datasets.
+    @param model: a tensorflow Sequential model
+    @param history: History callback object that keeps track of metrics for model
+    @param test_x: numpy array, representing predictor testing set
+    @param test_y: numpy array, representing target testing set
+    """
+    
+    plt.figure(figsize=(12, 6))
+
+    # plot training & validation model accuracy across epochs
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('Model accuracy')
+    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Training', 'Validation'], loc='upper left')
+
+    # plot training & validation model loss values across epochs
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Training', 'Validation'], loc='upper left')
+
+    plt.tight_layout()
+    plt.show()
+    
+    loss, accuracy = model.evaluate(test_x, test_y, verbose=0)
+    print(f'Test accuracy: {accuracy*100:.2f}%, Test loss: {loss}')
+
+
+    
+    
+
+def generate_review(model, tokenizer, seed_text, max_sequence_len, review_length):
+    """
+    Generate a review from a seed text.
+    @param model: Trained Keras model for text generation.
+    @param tokenizer: Tokenizer used for training the model.
+    @param seed_text: Initial text to start the review generation.
+    @param max_sequence_len: Maximum length of sequences used during training.
+    @param review_length: Desired length of the generated review.
+    @rvalue seed_text: A string containing the generated review.
+    """
+    for _ in range(review_length):
+        # tokenize current text
+        token_list = tokenizer.texts_to_sequences([seed_text])[0]
+        # pad sequence
+        token_list = pad_sequences([token_list], maxlen=max_sequence_len-1, padding='pre')
+        # predict next word (probability distribution over vocab)
+        predicted = model.predict(token_list, verbose=0)
+        # convert to single word index
+        predicted_index = np.argmax(predicted, axis=-1)[0]
+        # convert word index back to word
+        output_word = ""
+        for word, index in tokenizer.word_index.items():
+            if index == predicted_index:
+                output_word = word
+                break
+        # append predicted word to text
+        seed_text += " " + output_word
+        # consider putting stopping criterion?
+        # EX:  if output_word == 'endToken': break
+    return seed_text
