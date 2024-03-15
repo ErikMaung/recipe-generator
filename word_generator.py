@@ -107,16 +107,121 @@ def clean(data, column):
 
 # Tokenize Data
 # represent each word as a numerical value
-def tokenize(text):
+
+def split_data(data):
     """
-    This function tokenizes text data, representing each word as a numerical value.
+    The function splits the data into training, validation, and testing sets. The training data is 80% of the data, while the 
+    validation and testing sets equally make up the other 20% of the data (they are both 10% of data).
+    @param data: a dataset
+    @rvalue train_data: 80% of original data
+    @rvalue val_data: 10% of original data
+    @rvalue test_data: 10% of original data
+    """
+    # training data is 80% of data
+    train_data, temp_data = train_test_split(data, test_size=0.2, random_state=42) 
+    # validation data and testing data are both 10% of data
+    val_data, test_data = train_test_split(temp_data, test_size=0.5, random_state=42) 
+    return train_data, val_data, test_data
+
+def tokenize(train_data):
+    """
+    This function tokenizes the training text data and then returns the train_data, total_words, and tokenizer.
     @param text: string object
     @rvalue text: string object tokenized
     @rvalue total_words: length of word index + 1
     @rvalue tokenizer: tokenizer from tensorflow package
     """
     tokenizer = Tokenizer() 
-    tokenizer.fit_on_texts(text) # fit on series of text
+    tokenizer.fit_on_texts(train_data) # fit on series of text
     total_words = len(tokenizer.word_index) + 1 # length of word index
-    return text, total_words, tokenizer
+    return train_data, tokenizer
+
+def input_seq(train, val, test, tokenizer):
+    """
+    This function creates input sequences for the Sequential model. The input sequences are created by using n grams of 
+    each tokenized review. Each n gram in the sequence is then padded with zeros to the length of the largest n gram sequence
+    in the training data.The x variable represents the predictor data, meaning it is all the data in the input sequence, minus the last token. The 
+    y variable is the target and what the model aims to predict. Therefor the y variable is the last token "word" in the input
+    sequences.
+    @param train, val, test: text objects with training, validation, and testing data
+    @param tokenizer: tokenizer object from tensorflow
+    @rvalue train_x, val_x, test_x: numpy arrays of integers (represents predictor data)
+    @rvalue train_y, val_y, test_y: numpy arrays of integers (represents target data)
+    @rvalue total_words: int, length of word index
+    """
+    # create n gram sequences
+    def create_sequences(text):
+        """
+        This function creates n gram sequences for the text.
+        @param text: string object
+        """
+        input_sequences = []
+        for line in text: # for each review
+            token_list = tokenizer.texts_to_sequences([line])[0] # map each unique word to an integer with tokenizer
+            # Creating n gram for each review
+            for i in range(1, len(token_list)): 
+                n_gram_sequence = token_list[:i+1]
+                input_sequences.append(n_gram_sequence) # input_sequences is a list of sequences from tokenized reviews
+        return input_sequences
+    
+    # total words
+    total_words = len(tokenizer.word_index) + 1
+    
+    # create n gram sequences for training, validation, and testing data
+    train_seq = create_sequences(train)
+    val_seq = create_sequences(val)
+    test_seq = create_sequences(test)
+    
+    # padding sequences so each sequence in input_sequences has the same length
+    max_sequence_len = max(max([len(x) for x in train_seq]),
+                           max([len(x) for x in val_seq]),
+                           max([len(x) for x in test_seq])) # identify length of largest sequence
+    
+    # pre pad sequences with zeros if length of max_sequence_len is not met
+    train_seq = pad_sequences(train_seq, maxlen=max_sequence_len, padding='pre')
+    val_seq = pad_sequences(val_seq, maxlen=max_sequence_len, padding='pre')
+    test_seq = pad_sequences(test_seq, maxlen=max_sequence_len, padding='pre')
+
+    # create predictor and target data 
+    def split_sequences(sequences):
+        """
+        @param sequences:
+        @rvalue x: numpy array of integers (represents predictor data)
+        @rvalue y: numpy array of integers (represents target data)
+        """
+        x = sequences[:, :-1] # the tokenized sequences minus the last token
+        y = sequences[:, -1] # the last token for each tokenized sequence
+        return x, y
+    
+    # generate predictor and target data for training, validation, and testing data
+    train_x, train_y = split_sequences(train_seq)
+    val_x, val_y = split_sequences(val_seq)
+    test_x, test_y = split_sequences(test_seq)
+    
+    return train_x, train_y, val_x, val_y, test_x, test_y, total_words, max_sequence_len
+
+def prepare_for_model(train_x, train_y, val_x, val_y, test_x, test_y, total_words):
+    """
+    This function applies the one-hot encoding to the predictor data and then converts all the data into numpy arrays.
+    @param train_x, val_x, test_x: numpy arrays of integers (represents predictor data)
+    @param train_y, val_y, test_y: numpy arrays of integers (represents target data)
+    @rvalue train_x, val_x, test_x: numpy arrays of integers (represents predictor data)
+    @rvalue train_y, val_y, test_y: numpy arrays of one-hot encoded data (represents target data)
+    """
+    # convert target data to binary class matrices
+    train_y = np.array(tf.keras.utils.to_categorical(train_y, num_classes=total_words))
+    val_y = np.array(tf.keras.utils.to_categorical(val_y, num_classes=total_words))
+    test_y = np.array(tf.keras.utils.to_categorical(test_y, num_classes=total_words))
+    
+    # convert data to numpy arrays to ensure model compatability
+    train_x = np.array(train_x)
+    train_y = np.array(train_y)
+    val_x = np.array(val_x)
+    val_y = np.array(val_y)
+    test_x = np.array(test_x)
+    test_y = np.array(test_y)
+    
+    return train_x, train_y, val_x, val_y, test_x, test_y
+
+
 
