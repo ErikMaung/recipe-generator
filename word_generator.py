@@ -14,7 +14,9 @@ from nltk.tokenize import sent_tokenize
 nltk.download('punkt')
 import spacy
 nlp = spacy.load("en_core_web_sm")
+
 from sklearn.model_selection import train_test_split
+from matplotlib import pyplot as plt
 
 # Data Attributes
 # def averages(text):
